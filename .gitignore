@@ -1,0 +1,39 @@
+# R
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+
+# renv
+renv/library/
+renv/staging/
+
+# Environment variables (never commit real keys)
+.Renviron
+
+# Data (large/regenerable raw and most processed files)
+data/raw/
+data/processed/
+
+# Exception: AI summaries cost money to regenerate — commit them
+!data/processed/ai_summaries/
+data/processed/ai_summaries/.gitkeep
+
+# Quarto intermediates
+/.quarto/
+*_files/
+*.html
+!docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db

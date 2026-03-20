@@ -1,0 +1,187 @@
+---
+title: "Chicago's 77 Neighborhoods"
+subtitle: "Business activity and community sentiment — a data portrait"
+author: "Data: Chicago Data Portal + Reddit"
+date: last-modified
+format:
+  revealjs:
+    theme: [default, custom.scss]
+    slide-number: true
+    hash: true
+    transition: slide
+    controls: true
+    embed-resources: true
+    width: 1280
+    height: 720
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+library(here)
+library(dplyr)
+library(ggplot2)
+library(leaflet)
+library(sf)
+library(scales)
+library(knitr)
+library(stringr)
+library(purrr)
+
+source(here("R", "utils", "chart_functions.R"))
+
+# Load master dataset
+metrics_path <- here("data", "processed", "neighborhood_metrics.rds")
+if (!file.exists(metrics_path)) {
+  stop("neighborhood_metrics.rds not found. Run the pipeline first:\n",
+       "  Rscript run_pipeline.R")
+}
+
+neighborhood_metrics <- readRDS(metrics_path)
+
+# Load business category breakdown for charts
+biz_data       <- readRDS(here("data", "processed", "business_summary.rds"))
+biz_by_category <- biz_data$by_category
+
+# Optional: subset for testing
+subset_n <- as.integer(Sys.getenv("NEIGHBORHOOD_SUBSET", unset = "0"))
+if (subset_n > 0 && subset_n < 77) {
+  message("NEIGHBORHOOD_SUBSET=", subset_n, " — rendering subset of ", subset_n, " neighborhoods")
+  neighborhood_metrics <- head(neighborhood_metrics, subset_n)
+}
+
+geojson_path <- here("data", "reference", "chicago_community_areas.geojson")
+```
+
+## Chicago's 77 Community Areas {.title-slide}
+
+:::{.columns}
+:::{.column width="60%"}
+An automated data portrait of every official Chicago neighborhood, combining:
+
+- **Active business licenses** (Chicago Data Portal)
+- **Community sentiment** (Reddit discussions)
+- **AI-generated summaries** (Claude claude-3-5-haiku-20241022)
+
+`r nrow(neighborhood_metrics)` neighborhoods · `r scales::comma(sum(neighborhood_metrics$total_active_businesses))` active businesses
+
+:::
+:::{.column width="40%"}
+
+```{r sentiment-summary}
+sent_counts <- count(neighborhood_metrics, sentiment_label)
+knitr::kable(
+  sent_counts,
+  col.names = c("Sentiment", "Neighborhoods"),
+  align = c("l", "r")
+)
+```
+
+:::
+:::
+
+---
+
+## Neighborhood Sentiment Map
+
+```{r choropleth}
+#| out-width: "100%"
+#| out-height: "550px"
+if (file.exists(geojson_path)) {
+  make_overview_choropleth(geojson_path, neighborhood_metrics)
+} else {
+  cat("GeoJSON not found. Download from Chicago Data Portal and save to data/reference/")
+}
+```
+
+*Colored by normalized AFINN sentiment score (green = positive, red = negative, grey = no Reddit data)*
+
+---
+
+## By the Numbers
+
+```{r overview-stats}
+#| fig-height: 4
+top10 <- neighborhood_metrics |>
+  slice_max(order_by = total_active_businesses, n = 10) |>
+  mutate(name = forcats::fct_reorder(name, total_active_businesses))
+
+ggplot(top10, aes(x = total_active_businesses, y = name, fill = sentiment_label)) +
+  geom_col() +
+  geom_text(aes(label = comma(total_active_businesses)), hjust = -0.1, size = 3.5) +
+  scale_fill_manual(
+    values = c("Positive" = "#2E7D32", "Neutral" = "#F9A825", "Negative" = "#C62828"),
+    name   = "Sentiment"
+  ) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "Top 10 Neighborhoods by Active Business Count",
+    x     = "Active Business Licenses",
+    y     = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(panel.grid.major.y = element_blank())
+```
+
+---
+
+```{r neighborhood-slides, results='asis'}
+# Loop over each neighborhood and knit the child slide template.
+# The child reads `current_slug` from the environment.
+
+slugs_to_render <- neighborhood_metrics$slug
+
+for (current_slug in slugs_to_render) {
+  # Make current_slug available to child document
+  knitr::knit_child(
+    here("slides", "_neighborhood_slide.qmd"),
+    envir = environment(),
+    quiet = TRUE
+  ) |> cat()
+}
+```
+
+---
+
+## Data & Methods
+
+:::{.columns}
+:::{.column width="50%"}
+
+**Business Data**
+
+- Source: Chicago Data Portal Socrata API
+- Filter: `license_status = AAC` (active)
+- ~200 license types → 10 categories
+- Diversity: Shannon entropy
+
+**Reddit Data**
+
+- Public JSON API (no OAuth)
+- r/chicago + neighborhood subreddits
+- Past 12 months
+- Sentiment: AFINN + Bing lexicons (tidytext)
+
+:::
+:::{.column width="50%"}
+
+**AI Summaries**
+
+- Model: `claude-3-5-haiku-20241022`
+- Prompt constrained to data only
+- Cached; not regenerated each render
+
+**Data Quality Flags**
+
+- `full` — business + Reddit (≥10 posts)
+- `low_reddit` — <10 Reddit posts
+- `business_only` — no Reddit data
+
+**Code:** github.com/[your-username]/chicago_neighborhoods
+
+:::
+:::

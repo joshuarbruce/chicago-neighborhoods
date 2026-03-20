@@ -1,0 +1,30 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Chicago 77 Neighborhoods"
+
+format:
+  revealjs:
+    theme: [default, slides/custom.scss]
+    slide-number: true
+    show-slide-number: all
+    hash: true
+    history: true
+    transition: slide
+    background-transition: fade
+    chalkboard: false
+    controls: true
+    controls-layout: bottom-right
+    preview-links: false
+    embed-resources: true
+    width: 1280
+    height: 720
+
+execute:
+  freeze: false
+  cache: false
+  echo: false
+  warning: false
+  message: false
