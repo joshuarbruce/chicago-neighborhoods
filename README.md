@@ -2,7 +2,7 @@
 
 A public portfolio project profiling all 77 of Chicago's official community areas using business license data and Reddit community discussion.
 
-**Live Slides:** [GitHub Pages URL — add after first deploy]
+**Live Slides:** https://joshuarbruce.github.io/chicago-neighborhoods/
 
 ## What's in Here
 
@@ -41,8 +41,8 @@ Opening slide: choropleth of all 77 neighborhoods colored by sentiment score.
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/chicago_neighborhoods.git
-cd chicago_neighborhoods
+git clone https://github.com/joshuarbruce/chicago-neighborhoods.git
+cd chicago-neighborhoods
 
 # R packages (renv restores from lockfile)
 Rscript -e "renv::restore()"
@@ -122,3 +122,17 @@ Some neighborhoods have very little Reddit activity. The `data_quality_flag` fie
 - `business_only` — no usable Reddit data; AI summary omits Reddit signals
 
 AI summaries are cached to `data/processed/ai_summaries/` and committed so the Quarto render step doesn't require an API key.
+
+## Data Licensing & Attribution
+
+**Business license data** and **community area boundaries** are published by the City of Chicago under the [Chicago Data Portal Terms of Use](https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html). The City of Chicago makes no warranty regarding the accuracy or completeness of this data.
+
+**Reddit data** is collected via Reddit's public JSON API in accordance with Reddit's [Terms of Service](https://www.redditinc.com/policies/user-agreement). Post content remains the property of the respective authors.
+
+**AI-generated summaries** are produced using the [Anthropic Claude API](https://www.anthropic.com). Summaries are derived solely from the quantitative data collected for this project and do not represent Anthropic's views.
+
+**Sentiment lexicons** (AFINN, Bing) are used via the [tidytext](https://github.com/juliasilge/tidytext) R package. AFINN is © Finn Årup Nielsen; Bing lexicon is from Bing Liu and collaborators.
+
+## Copyright
+
+© 2026 Joshua R. Bruce. Code and original analysis in this repository are released under the [MIT License](LICENSE). Data files from third-party sources retain their original licenses as noted above.
