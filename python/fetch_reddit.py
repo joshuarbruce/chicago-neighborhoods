@@ -36,7 +36,8 @@ DELAY = config["request_delay_seconds"]
 MIN_POSTS = config["min_posts_threshold"]
 PRIMARY_SUB = config["primary_subreddit"]
 FALLBACK_SUB = config["fallback_subreddit"]
-POST_LIMIT = config["post_limit"]
+POST_LIMIT = config["post_limit"]   # max per request (Reddit caps at 100)
+MAX_POSTS = config["max_posts"]     # ceiling across all paginated requests
 TIME_FILTER = config["time_filter"]
 
 HEADERS = {"User-Agent": USER_AGENT}
@@ -103,17 +104,40 @@ def extract_posts(data: dict) -> list[dict]:
 # Collection logic
 # ---------------------------------------------------------------------------
 
-def fetch_subreddit_posts(subreddit: str, slug: str) -> list[dict]:
-    """Fetch new + top posts from a dedicated neighborhood subreddit."""
+def fetch_paginated(url: str, base_params: dict, max_posts: int = MAX_POSTS) -> list[dict]:
+    """
+    Paginate a Reddit listing endpoint using the `after` cursor until
+    `max_posts` are collected or Reddit returns no more results.
+    Each page sleeps DELAY seconds before fetching.
+    """
+    all_posts = []
+    after = None
+    while len(all_posts) < max_posts:
+        params = {**base_params, "limit": POST_LIMIT}
+        if after:
+            params["after"] = after
+        data = get_json(url, params)
+        time.sleep(DELAY)
+        if not data:
+            break
+        page_posts = extract_posts(data)
+        if not page_posts:
+            break
+        all_posts.extend(page_posts)
+        after = data.get("data", {}).get("after")
+        if not after:
+            break  # no more pages
+        log.debug("    paginating — %d posts so far, after=%s", len(all_posts), after)
+    return all_posts[:max_posts]
+
+
+def fetch_subreddit_posts(subreddit: str, max_posts: int = MAX_POSTS) -> list[dict]:
+    """Fetch new + top posts from a dedicated neighborhood subreddit with pagination."""
     posts = []
     for sort in ("new", "top"):
         url = f"{REDDIT_BASE}/r/{subreddit}/{sort}.json"
-        params = {"limit": POST_LIMIT}
-        if sort == "top":
-            params["t"] = TIME_FILTER
-        data = get_json(url, params)
-        time.sleep(DELAY)
-        posts.extend(extract_posts(data))
+        base_params = {"t": TIME_FILTER} if sort == "top" else {}
+        posts.extend(fetch_paginated(url, base_params, max_posts=max_posts))
     # Deduplicate by post id
     seen = set()
     unique = []
@@ -125,19 +149,16 @@ def fetch_subreddit_posts(subreddit: str, slug: str) -> list[dict]:
     return unique
 
 
-def search_subreddit(subreddit: str, search_term: str) -> list[dict]:
-    """Search within a subreddit for a neighborhood term."""
+def search_subreddit(subreddit: str, search_term: str, max_posts: int = MAX_POSTS) -> list[dict]:
+    """Search within a subreddit for a neighborhood term, with pagination."""
     url = f"{REDDIT_BASE}/r/{subreddit}/search.json"
-    params = {
+    base_params = {
         "q":           search_term,
         "restrict_sr": 1,
         "sort":        "relevance",
         "t":           TIME_FILTER,
-        "limit":       POST_LIMIT,
     }
-    data = get_json(url, params)
-    time.sleep(DELAY)
-    posts = extract_posts(data)
+    posts = fetch_paginated(url, base_params, max_posts=max_posts)
     log.info("  Search r/%s q=%r: %d posts", subreddit, search_term, len(posts))
     return posts
 
@@ -149,8 +170,8 @@ def collect_neighborhood(neighborhood: dict) -> dict:
     """
     slug = neighborhood["slug"]
     name = neighborhood["name"]
-    subreddit = neighborhood.get("subreddit")  # may be null
-    search_term = neighborhood["search_term"]
+    # Support both single search_term (legacy) and search_terms list
+    search_terms = neighborhood.get("search_terms") or [neighborhood["search_term"]]
     out_path = OUTPUT_DIR / f"{slug}.json"
 
     if out_path.exists():
@@ -168,25 +189,29 @@ def collect_neighborhood(neighborhood: dict) -> dict:
     all_posts = []
     sources = []
 
-    # (a) Dedicated neighborhood subreddit if it exists
-    if subreddit:
-        sub_posts = fetch_subreddit_posts(subreddit, slug)
+    # (a) Dedicated neighborhood subreddits (may be multiple)
+    for subreddit in neighborhood.get("subreddits", []):
+        sub_posts = fetch_subreddit_posts(subreddit, max_posts=MAX_POSTS)
         all_posts.extend(sub_posts)
         sources.append(f"r/{subreddit}")
 
-    # (b) Always search r/chicago
-    chicago_posts = search_subreddit(PRIMARY_SUB, search_term)
-    all_posts.extend(chicago_posts)
-    if chicago_posts:
+    # (b) Search r/chicago for each search term
+    total_chicago_posts = 0
+    for search_term in search_terms:
+        chicago_posts = search_subreddit(PRIMARY_SUB, search_term, max_posts=MAX_POSTS)
+        all_posts.extend(chicago_posts)
+        total_chicago_posts += len(chicago_posts)
+    if total_chicago_posts > 0:
         sources.append(f"r/{PRIMARY_SUB}")
 
-    # (c) If fewer than MIN_POSTS from r/chicago, try fallback subreddit
-    if len(chicago_posts) < MIN_POSTS:
+    # (c) If fewer than MIN_POSTS total from r/chicago, try fallback for each term
+    if total_chicago_posts < MIN_POSTS:
         log.info("  r/chicago returned %d posts (< %d) — trying fallback r/%s",
-                 len(chicago_posts), MIN_POSTS, FALLBACK_SUB)
-        fallback_posts = search_subreddit(FALLBACK_SUB, search_term)
-        all_posts.extend(fallback_posts)
-        if fallback_posts:
+                 total_chicago_posts, MIN_POSTS, FALLBACK_SUB)
+        for search_term in search_terms:
+            fallback_posts = search_subreddit(FALLBACK_SUB, search_term, max_posts=MAX_POSTS)
+            all_posts.extend(fallback_posts)
+        if any(all_posts):
             sources.append(f"r/{FALLBACK_SUB}")
 
     # Deduplicate across all sources
@@ -224,6 +249,9 @@ def main():
     parser.add_argument("--slugs", nargs="+", help="Only collect these slugs")
     parser.add_argument("--test", action="store_true",
                         help="Test mode: Rogers Park, Hyde Park, Riverdale")
+    parser.add_argument("--recollect-min-posts", type=int, metavar="N",
+                        help="Delete and re-collect any neighborhood whose existing "
+                             "JSON has >= N posts (use 100 to re-collect all capped files)")
     args = parser.parse_args()
 
     neighborhoods = config["neighborhoods"]
@@ -236,6 +264,21 @@ def main():
         slug_set = set(args.slugs)
         neighborhoods = [n for n in neighborhoods if n["slug"] in slug_set]
         log.info("Subset mode: %d neighborhoods", len(neighborhoods))
+
+    # Delete existing files for neighborhoods at or above the recollect threshold
+    if args.recollect_min_posts is not None:
+        threshold = args.recollect_min_posts
+        deleted = 0
+        for nbhd in neighborhoods:
+            path = OUTPUT_DIR / f"{nbhd['slug']}.json"
+            if path.exists():
+                existing = json.loads(path.read_text())
+                count = len(existing.get("posts", []))
+                if count >= threshold:
+                    path.unlink()
+                    log.info("Deleted %s (%d posts >= threshold %d)", path.name, count, threshold)
+                    deleted += 1
+        log.info("Cleared %d files with >= %d posts — will re-collect", deleted, threshold)
 
     log.info("Collecting %d neighborhoods", len(neighborhoods))
     log_rows = []

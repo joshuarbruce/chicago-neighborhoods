@@ -142,12 +142,58 @@ post_metrics <- reddit_clean |>
   )
 
 # ---------------------------------------------------------------------------
-# Top 20 unigrams per neighborhood
+# TF-IDF: combined bi- and tri-gram phrases per neighborhood
+# Multi-word phrases are far more interpretable than single tokens.
+# After scoring, we deduplicate: if a bigram is entirely contained within
+# a higher-ranked trigram for the same neighborhood, the bigram is dropped
+# (e.g. keep "wicker park coffee", drop "wicker park").
+# Sentiment still uses unigram `tokens` above.
 # ---------------------------------------------------------------------------
-top_words <- tokens |>
-  count(slug, word, sort = TRUE) |>
+message("Computing bi/tri-gram TF-IDF...")
+
+extract_ngrams <- function(data, n) {
+  word_cols <- paste0("w", seq_len(n))
+  data |>
+    select(slug, post_id, full_text) |>
+    unnest_tokens(ngram, full_text, token = "ngrams", n = n) |>
+    separate(ngram, into = word_cols, sep = " ") |>
+    filter(
+      if_all(all_of(word_cols), ~ !.x %in% all_stopwords$word),
+      if_all(all_of(word_cols), ~ str_detect(.x, "^[a-z]{3,}$"))
+    ) |>
+    unite(word, all_of(word_cols), sep = " ")
+}
+
+all_ngrams <- bind_rows(
+  extract_ngrams(reddit_clean, 2),
+  extract_ngrams(reddit_clean, 3)
+)
+
+tfidf_all <- all_ngrams |>
+  count(slug, word) |>
+  bind_tf_idf(word, slug, n)
+
+# Deduplicate per neighborhood: take the top 20 candidates, then remove any
+# bigram whose text appears as a substring inside a trigram also in that set.
+# This collapses "snow tow" / "tow zones" into just "snow tow zones".
+tfidf <- tfidf_all |>
   group_by(slug) |>
-  slice_max(order_by = n, n = 20, with_ties = FALSE) |>
+  slice_max(order_by = tf_idf, n = 20, with_ties = FALSE) |>
+  group_modify(function(df, .key) {
+    trigrams_here <- df$word[str_count(df$word, " ") == 2]
+    df |> filter(
+      str_count(word, " ") == 2 |                              # keep all trigrams
+        !map_lgl(word, \(p) any(str_detect(trigrams_here, fixed(p))))  # bigram not inside any trigram
+    )
+  }) |>
+  slice_max(order_by = tf_idf, n = 10, with_ties = FALSE) |>
+  ungroup()
+
+# Save full TF-IDF table for chart rendering (joined in by slug at slide time)
+saveRDS(tfidf, here("data", "processed", "tfidf_terms.rds"))
+
+top_tfidf_words <- tfidf |>
+  group_by(slug) |>
   summarise(top_words = paste(word, collapse = ", "), .groups = "drop")
 
 # ---------------------------------------------------------------------------
@@ -158,7 +204,7 @@ sentiment_scores <- lookup |>
   left_join(neighborhood_afinn, by = "slug") |>
   left_join(bing_counts,        by = "slug") |>
   left_join(post_metrics,       by = "slug") |>
-  left_join(top_words,          by = "slug") |>
+  left_join(top_tfidf_words,    by = "slug") |>
   mutate(
     post_count           = coalesce(post_count, 0L),
     mean_sentiment_score = coalesce(mean_sentiment_score, 0),

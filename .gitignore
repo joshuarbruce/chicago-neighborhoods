@@ -26,6 +26,10 @@ data/processed/ai_summaries/.gitkeep
 *.html
 !docs/
 
+# Quarto website artifacts (not needed — slides are embed-resources: true)
+docs/site_libs/
+docs/search.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -37,3 +41,5 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+**/*.quarto_ipynb

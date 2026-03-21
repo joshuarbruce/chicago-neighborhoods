@@ -1,47 +1,34 @@
-```{r neighborhood-slide-setup}
+```{r}
 #| include: false
-# This child document is called by chicago_neighborhoods.qmd via knit_child().
-# It expects `current_slug` to be set in the parent's loop environment.
-
 library(here)
 library(dplyr)
 library(ggplot2)
-library(wordcloud2)
-library(leaflet)
-library(htmlwidgets)
 library(stringr)
 library(scales)
 
 source(here("R", "utils", "chart_functions.R"))
 
-# Load data passed from parent (neighborhood_metrics already loaded there)
-row <- neighborhood_metrics |> filter(slug == current_slug)
-biz_cats_row <- biz_by_category |> filter(slug == current_slug)
+row          <- neighborhood_metrics |> filter(slug == current_slug)
+biz_cats_row <- biz_by_category     |> filter(slug == current_slug)
+tfidf_row    <- tfidf_data          |> filter(slug == current_slug)
 
-# Convenience variables
-nbhd_name    <- row$name
-total_biz    <- row$total_active_businesses
-diversity    <- round(row$business_diversity_index, 2)
-sent_label   <- row$sentiment_label
-sent_class   <- tolower(sent_label)
-post_count   <- row$post_count
-engagement   <- row$total_engagement
-ai_text      <- coalesce(row$ai_summary, "_No AI summary available._")
-top_words    <- row$top_words
-dq_flag      <- row$data_quality_flag
-area_num     <- row$community_area_number
-geojson_path <- here("data", "reference", "chicago_community_areas.geojson")
+nbhd_name  <- row$name
+total_biz  <- row$total_active_businesses
+diversity  <- round(row$business_diversity_index, 2)
+sent_label <- row$sentiment_label
+sent_class <- tolower(sent_label)
+post_count <- row$post_count
+ai_text    <- coalesce(row$ai_summary, "_No AI summary available._")
+dq_flag    <- row$data_quality_flag
 ```
 
-## `r nbhd_name` {.neighborhood-slide}
+## `r nbhd_name`
 
 ::: {.columns}
 
-::: {.column width="55%"}
+::: {.column width="52%"}
 
-<div class="ai-summary">
-`r ai_text`
-</div>
+<div class="ai-summary">`r ai_text`</div>
 
 ::: {.stat-grid}
 ::: {.stat-box}
@@ -59,55 +46,28 @@ geojson_path <- here("data", "reference", "chicago_community_areas.geojson")
 :::
 
 Sentiment: <span class="sentiment-badge `r sent_class`">`r sent_label`</span>
-
-```{r business-chart}
-#| fig-height: 3.5
-#| fig-width: 6
-if (nrow(biz_cats_row) > 0) {
-  make_business_bar_chart(biz_cats_row, nbhd_name)
-} else {
-  ggplot() +
-    annotate("text", x = 0.5, y = 0.5, label = "No business data available",
-             size = 5, color = "#757575") +
-    theme_void()
-}
-```
+`r if (dq_flag == "low_reddit") '<span class="data-quality-notice"> &nbsp;⚠ limited data</span>'`
+`r if (dq_flag == "business_only") '<span class="data-quality-notice"> &nbsp;no Reddit data</span>'`
 
 :::
 
-::: {.column width="45%"}
+::: {.column width="48%"}
 
-```{r minimap}
-#| out-width: "100%"
-if (file.exists(geojson_path)) {
-  make_leaflet_minimap(geojson_path, area_num, nbhd_name)
+```{r}
+#| fig-height: 3.2
+#| fig-width: 5.5
+if (nrow(biz_cats_row) > 0) {
+  make_business_bar_chart(biz_cats_row, nbhd_name)
 }
 ```
 
-```{r wordcloud}
-#| out-width: "100%"
-if (dq_flag != "business_only" && !is.na(top_words) && nchar(top_words) > 0) {
-  words_vec <- str_split(top_words, ",\\s*")[[1]]
-  # Assign synthetic frequency (decreasing for top-20 ordering)
-  wc_df <- data.frame(
-    word = words_vec,
-    freq = seq(100, by = -4, length.out = length(words_vec))
-  )
-  wordcloud2(
-    wc_df,
-    size        = 0.5,
-    color       = "random-dark",
-    backgroundColor = "white",
-    minRotation = -pi/6,
-    maxRotation =  pi/6,
-    rotateRatio = 0.3
-  )
-} else if (dq_flag == "business_only") {
-  cat('<p class="data-quality-notice">No Reddit data available for this neighborhood.</p>')
+```{r}
+#| fig-height: 3.2
+#| fig-width: 5.5
+if (dq_flag != "business_only" && nrow(tfidf_row) > 0) {
+  make_tfidf_chart(tfidf_row, nbhd_name)
 }
 ```
-
-`r if (dq_flag == "low_reddit") '<p class="data-quality-notice">⚠ Limited Reddit data (&lt;10 posts) — sentiment estimate may be unreliable.</p>'`
 
 :::
 

@@ -1,9 +1,5 @@
 project:
-  type: website
   output-dir: docs
-
-website:
-  title: "Chicago 77 Neighborhoods"
 
 format:
   revealjs:

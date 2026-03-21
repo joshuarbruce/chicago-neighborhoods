@@ -34,7 +34,7 @@ summary_files <- list.files(SUMMARY_DIR, pattern = "\\.txt$", full.names = TRUE)
 
 ai_summaries <- tibble(
   slug       = tools::file_path_sans_ext(basename(summary_files)),
-  ai_summary = map_chr(summary_files, readLines, warn = FALSE) |>
+  ai_summary = map(summary_files, \(f) readLines(f, warn = FALSE)) |>
     map_chr(\(x) paste(x, collapse = " ")) |>
     str_squish()
 )

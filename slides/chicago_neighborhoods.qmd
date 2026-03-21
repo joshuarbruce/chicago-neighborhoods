@@ -43,6 +43,9 @@ if (!file.exists(metrics_path)) {
 
 neighborhood_metrics <- readRDS(metrics_path)
 
+# Load TF-IDF terms for neighborhood charts
+tfidf_data <- readRDS(here("data", "processed", "tfidf_terms.rds"))
+
 # Load business category breakdown for charts
 biz_data       <- readRDS(here("data", "processed", "business_summary.rds"))
 biz_by_category <- biz_data$by_category
@@ -65,7 +68,7 @@ An automated data portrait of every official Chicago neighborhood, combining:
 
 - **Active business licenses** (Chicago Data Portal)
 - **Community sentiment** (Reddit discussions)
-- **AI-generated summaries** (Claude claude-3-5-haiku-20241022)
+- **AI-generated summaries** (Claude claude-haiku-4-5-20251001)
 
 `r nrow(neighborhood_metrics)` neighborhoods · `r scales::comma(sum(neighborhood_metrics$total_active_businesses))` active businesses
 
@@ -171,7 +174,7 @@ for (current_slug in slugs_to_render) {
 
 **AI Summaries**
 
-- Model: `claude-3-5-haiku-20241022`
+- Model: `claude-haiku-4-5-20251001`
 - Prompt constrained to data only
 - Cached; not regenerated each render
 

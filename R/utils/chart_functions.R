@@ -90,17 +90,56 @@ make_leaflet_minimap <- function(geojson_path, community_area_number, neighborho
   lng <- coords[1]
   lat <- coords[2]
 
-  leaflet(options = leafletOptions(zoomControl = FALSE)) |>
+  leaflet(options = leafletOptions(
+    zoomControl       = FALSE,
+    dragging          = FALSE,
+    scrollWheelZoom   = FALSE,
+    doubleClickZoom   = FALSE,
+    touchZoom         = FALSE,
+    keyboard          = FALSE,
+    boxZoom           = FALSE
+  )) |>
     addProviderTiles("CartoDB.Positron") |>
     addPolygons(
       data        = target,
       fillColor   = "#1565C0",
       fillOpacity = 0.35,
       color       = "#0D47A1",
-      weight      = 2,
-      popup       = neighborhood_name
+      weight      = 2
     ) |>
     setView(lng = lng, lat = lat, zoom = 13)
+}
+
+# ---------------------------------------------------------------------------
+# TF-IDF bar chart
+# ---------------------------------------------------------------------------
+
+#' Create a horizontal bar chart of top TF-IDF terms for one neighborhood.
+#'
+#' @param tfidf_data Data frame with columns `word` and `tf_idf`.
+#' @param neighborhood_name Character — used in subtitle.
+#' @return ggplot object.
+make_tfidf_chart <- function(tfidf_data, neighborhood_name) {
+  df <- tfidf_data |>
+    arrange(desc(tf_idf)) |>
+    slice_head(n = 10) |>
+    mutate(word = forcats::fct_reorder(word, tf_idf))
+
+  ggplot(df, aes(x = tf_idf, y = word)) +
+    geom_col(fill = "#1565C0", alpha = 0.8) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+    labs(
+      title    = "Distinctive Reddit Terms (TF-IDF)",
+      subtitle = neighborhood_name,
+      x        = "TF-IDF Score",
+      y        = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      panel.grid.major.y = element_blank(),
+      plot.title         = element_text(face = "bold"),
+      axis.text.y        = element_text(size = 11)
+    )
 }
 
 # ---------------------------------------------------------------------------

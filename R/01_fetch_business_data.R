@@ -1,82 +1,72 @@
 # R/01_fetch_business_data.R
-# Stage 2: Download active business licenses from Chicago Data Portal Socrata API.
+# Stage 2: Read manually downloaded business licenses CSV, filter to active, rename columns.
+# Input:  data/raw/business_licenses/chicago_business_licenses_raw.csv
+#         (Download from: Chicago Data Portal → dataset r5kz-chrr → Export → CSV)
 # Output: data/raw/business_licenses/chicago_business_licenses.csv
 #
-# Skips download if file already exists (idempotent).
+# Skips processing if output already exists (idempotent).
 # Run: Rscript R/01_fetch_business_data.R
 
 suppressPackageStartupMessages({
-  library(httr2)
   library(readr)
   library(dplyr)
   library(here)
 })
 
+RAW_PATH <- here("data", "raw", "business_licenses", "chicago_business_licenses_raw.csv")
 OUT_PATH <- here("data", "raw", "business_licenses", "chicago_business_licenses.csv")
-ENDPOINT <- "https://data.cityofchicago.org/resource/r5kz-chrr.json"
-PAGE_SIZE <- 50000L
 
 # ---------------------------------------------------------------------------
-# Guard: skip if already downloaded
+# Guard: input must exist
+# ---------------------------------------------------------------------------
+if (!file.exists(RAW_PATH)) {
+  stop(
+    "Raw CSV not found: ", RAW_PATH, "\n",
+    "Download it from the Chicago Data Portal:\n",
+    "  https://data.cityofchicago.org/d/r5kz-chrr → Export → CSV\n",
+    "Save as: ", RAW_PATH,
+    call. = FALSE
+  )
+}
+
+# ---------------------------------------------------------------------------
+# Guard: skip if output already exists
 # ---------------------------------------------------------------------------
 if (file.exists(OUT_PATH)) {
   n_rows <- nrow(read_csv(OUT_PATH, show_col_types = FALSE))
-  message("Already downloaded: ", OUT_PATH, " (", n_rows, " rows). Delete to re-download.")
+  message("Already processed: ", OUT_PATH, " (", n_rows, " rows). Delete to reprocess.")
   quit(save = "no", status = 0)
 }
 
-dir.create(dirname(OUT_PATH), recursive = TRUE, showWarnings = FALSE)
-message("Fetching active business licenses from Chicago Data Portal...")
-
 # ---------------------------------------------------------------------------
-# Paginated download
+# Read, filter to active licenses, rename columns to snake_case
 # ---------------------------------------------------------------------------
-fetch_page <- function(offset) {
-  resp <- request(ENDPOINT) |>
-    req_url_query(
-      `$where`  = "license_status='AAC'",
-      `$limit`  = PAGE_SIZE,
-      `$offset` = offset,
-      `$order`  = "id"
-    ) |>
-    req_retry(max_tries = 3, backoff = \(i) 5 * 2^(i - 1)) |>
-    req_timeout(120) |>
-    req_perform()
+message("Reading: ", RAW_PATH)
+raw <- read_csv(RAW_PATH, show_col_types = FALSE)
+message("Total rows: ", nrow(raw))
 
-  resp_body_json(resp, simplifyVector = TRUE)
-}
-
-all_records <- list()
-offset <- 0L
-page <- 1L
-
-repeat {
-  message("  Page ", page, " (offset=", offset, ")...")
-  records <- fetch_page(offset)
-  if (length(records) == 0) break
-
-  all_records[[page]] <- as.data.frame(records)
-  message("    Got ", nrow(all_records[[page]]), " records")
-
-  if (nrow(all_records[[page]]) < PAGE_SIZE) break
-  offset <- offset + PAGE_SIZE
-  page   <- page + 1L
-  Sys.sleep(0.5)  # be a good API citizen
-}
-
-df <- bind_rows(all_records)
-message("Total records fetched: ", nrow(df))
-
-# ---------------------------------------------------------------------------
-# Minimal type coercion before saving
-# ---------------------------------------------------------------------------
-df <- df |>
-  mutate(
-    community_area = as.character(community_area),
-    latitude       = suppressWarnings(as.numeric(latitude)),
-    longitude      = suppressWarnings(as.numeric(longitude))
+df <- raw |>
+  filter(`LICENSE STATUS` == "AAC") |>
+  transmute(
+    id                   = ID,
+    license_id           = `LICENSE ID`,
+    legal_name           = `LEGAL NAME`,
+    doing_business_as    = `DOING BUSINESS AS NAME`,
+    address              = ADDRESS,
+    community_area       = as.character(`COMMUNITY AREA`),
+    community_area_name  = `COMMUNITY AREA NAME`,
+    license_code         = `LICENSE CODE`,
+    license_description  = `LICENSE DESCRIPTION`,
+    business_activity_id = `BUSINESS ACTIVITY ID`,
+    business_activity    = `BUSINESS ACTIVITY`,
+    license_status       = `LICENSE STATUS`,
+    license_term_start   = `LICENSE TERM START DATE`,
+    license_term_expiry  = `LICENSE TERM EXPIRATION DATE`,
+    latitude             = suppressWarnings(as.numeric(LATITUDE)),
+    longitude            = suppressWarnings(as.numeric(LONGITUDE))
   )
+
+message("Active licenses (AAC): ", nrow(df))
 
 write_csv(df, OUT_PATH)
 message("Saved to: ", OUT_PATH)
-message("Columns: ", paste(names(df), collapse = ", "))
