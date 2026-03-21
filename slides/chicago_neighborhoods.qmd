@@ -114,20 +114,20 @@ top10 <- neighborhood_metrics |>
   mutate(name = forcats::fct_reorder(name, total_active_businesses))
 
 ggplot(top10, aes(x = total_active_businesses, y = name, fill = sentiment_label)) +
-  geom_col() +
-  geom_text(aes(label = comma(total_active_businesses)), hjust = -0.1, size = 3.5) +
+  geom_col(width = 0.65) +
+  geom_text(aes(label = comma(total_active_businesses)), hjust = -0.15, size = 3.2,
+            family = "serif", color = "#4a3f35") +
   scale_fill_manual(
-    values = c("Positive" = "#2E7D32", "Neutral" = "#F9A825", "Negative" = "#C62828"),
+    values = c("Positive" = "#4a7c59", "Neutral" = "#b8963e", "Negative" = "#9e3a3a"),
     name   = "Sentiment"
   ) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15)), labels = comma) +
   labs(
     title = "Top 10 Neighborhoods by Active Business Count",
-    x     = "Active Business Licenses",
+    x     = "Active business licenses",
     y     = NULL
   ) +
-  theme_minimal(base_size = 13) +
-  theme(panel.grid.major.y = element_blank())
+  theme_tufte_slide(base_size = 13)
 ```
 
 ---
