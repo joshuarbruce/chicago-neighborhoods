@@ -1,8 +1,8 @@
 # Chicago's 77 Neighborhoods — Data Portrait
 
-A portfolio project profiling every official Chicago community area using public business license data and Reddit community discussion. Output is a Quarto Reveal.js slide deck: one slide per neighborhood, with an AI-generated summary, business breakdown, sentiment score, and the most distinctive phrases from local Reddit discussion.
+A portfolio project profiling every official Chicago community area using public business license data and Reddit community discussion. Output is a Quarto Reveal.js slide deck — one slide per neighborhood — with an AI-generated summary, business breakdown, sentiment score, and the most distinctive phrases from local Reddit discussion.
 
-**[Live slide deck](https://joshuarbruce.github.io/chicago-neighborhoods/)**
+**[Live site](https://joshuarbruce.github.io/chicago-neighborhoods/)**
 
 ---
 
@@ -14,6 +14,10 @@ A portfolio project profiling every official Chicago community area using public
 - **Distinctive phrases** — top bi- and tri-gram phrases by TF-IDF score, showing what each neighborhood's Reddit community talks about that other neighborhoods don't
 
 The opening slides show a choropleth of all 77 neighborhoods colored by sentiment score and a top-10 business count ranking.
+
+### Visual design
+
+The slide deck and landing page use a Tufte-inspired aesthetic: cream background (`#fffff8`), Palatino serif typography, warm near-black headings, and a muted earth-tone palette that reserves color for data rather than decoration. Charts use a custom `theme_tufte_slide()` ggplot2 theme with minimal gridlines and a single axis rule.
 
 ---
 
@@ -39,11 +43,11 @@ Posts are tokenized with `tidytext::unnest_tokens()`. Two lexicons are used:
 - **AFINN** (scores −5 to +5): summed per post, then normalized by word count to prevent longer posts from dominating. Neighborhood score = mean of normalized post scores.
 - **Bing** (positive/negative ratio): used as a secondary signal.
 
-Neighborhoods with fewer than 10 posts are flagged `low_reddit`; the one with no Reddit data at all is flagged `business_only`.
+Neighborhoods with fewer than 10 posts are flagged `low_reddit`; those with no Reddit data are flagged `business_only`.
 
 ### Distinctive phrases (TF-IDF bigrams/trigrams)
 
-Rather than simple word counts, `R/03_process_reddit_data.R` computes TF-IDF on bi- and tri-gram phrases. This surfaces phrases like "lincoln yards development" or "cta brown line" instead of bare tokens like "development" or "line" — terms that are distinctive to a specific neighborhood relative to all 77. After scoring, shorter phrases that appear as substrings of higher-ranked longer phrases are removed to avoid redundancy.
+Rather than simple word counts, `R/03_process_reddit_data.R` computes TF-IDF on bi- and tri-gram phrases. This surfaces phrases like "lincoln yards development" or "cta brown line" instead of bare tokens — terms that are distinctive to a specific neighborhood relative to all 77. After scoring, shorter phrases that appear as substrings of higher-ranked longer phrases are removed to avoid redundancy.
 
 ### AI summaries (R + Anthropic API)
 
@@ -89,7 +93,7 @@ cp .Renviron.example .Renviron
 | `data/processed/ai_summaries/` | Yes | Costly to regenerate; needed for render |
 | `data/raw/` | No | Large and fully regenerable |
 | `data/processed/*.rds` | No | Regenerable from raw data |
-| `docs/` | Yes | Pre-rendered slide deck served by GitHub Pages |
+| `docs/` | Yes | Pre-rendered output served by GitHub Pages |
 
 Because `ai_summaries/` and `docs/` are committed, you can re-render the slides without running the pipeline or calling any API:
 
@@ -104,11 +108,11 @@ NEIGHBORHOOD_SUBSET=5 quarto render slides/chicago_neighborhoods.qmd
 ### Running the full pipeline
 
 ```bash
-# Business data (downloads from Chicago Data Portal)
+# Business data
 Rscript R/01_fetch_business_data.R
 Rscript R/02_process_business_data.R
 
-# Reddit collection (slow — 3.5s delay, up to 1000 posts/neighborhood)
+# Reddit collection (slow — 3.5s delay, up to 1,000 posts/neighborhood)
 /path/to/python3 python/fetch_reddit.py
 
 # NLP processing
@@ -143,7 +147,7 @@ chicago_neighborhoods/
 │   ├── 05_build_neighborhood_metrics.R
 │   └── utils/
 │       ├── api_helpers.R           # httr2 retry + rate limit logic
-│       ├── chart_functions.R       # ggplot2 + leaflet chart factories
+│       ├── chart_functions.R       # ggplot2 chart factories + theme_tufte_slide()
 │       └── text_helpers.R          # Text cleaning, stopwords, slugs
 ├── python/
 │   ├── fetch_reddit.py             # Paginated Reddit collector
@@ -152,8 +156,11 @@ chicago_neighborhoods/
 ├── slides/
 │   ├── chicago_neighborhoods.qmd   # Parent: loads data, loops over neighborhoods
 │   ├── _neighborhood_slide.qmd     # Child template: one slide per neighborhood
-│   └── custom.scss                 # Reveal.js theme
+│   └── custom.scss                 # Tufte-inspired Reveal.js theme
 ├── docs/                           # Rendered output → GitHub Pages
+│   ├── index.html                  # Landing page with embedded slide deck
+│   └── slides/
+│       └── chicago_neighborhoods.html
 ├── renv.lock
 └── .Renviron.example
 ```
