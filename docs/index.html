@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chicago's 77 Neighborhoods — Data Portrait</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", "Helvetica Neue", sans-serif;
+      background: #f5f5f5;
+      color: #212121;
+    }
+
+    header {
+      background: #0D47A1;
+      color: white;
+      padding: 2rem 2.5rem 1.5rem;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p.subtitle {
+      margin-top: 0.4rem;
+      font-size: 1rem;
+      opacity: 0.85;
+    }
+
+    header nav {
+      margin-top: 1rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    header nav a {
+      color: #90CAF9;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    header nav a:hover { text-decoration: underline; }
+
+    .deck-frame {
+      width: 100%;
+      height: 75vh;
+      min-height: 480px;
+      border: none;
+      display: block;
+      background: #111;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 2.5rem auto;
+      padding: 0 1.5rem;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #0D47A1;
+      margin-bottom: 0.75rem;
+    }
+
+    section { margin-bottom: 2.5rem; }
+
+    p { line-height: 1.7; margin-bottom: 0.6rem; }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .stage {
+      background: white;
+      border-left: 4px solid #1565C0;
+      border-radius: 0 6px 6px 0;
+      padding: 0.8rem 1rem;
+    }
+
+    .stage .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #1565C0;
+      font-weight: 700;
+    }
+
+    .stage .title {
+      font-weight: 600;
+      margin: 0.15rem 0 0.3rem;
+    }
+
+    .stage p { font-size: 0.88rem; color: #555; margin: 0; }
+
+    .stack-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    .stack-table th {
+      text-align: left;
+      background: #E3F2FD;
+      padding: 0.5rem 0.75rem;
+      font-weight: 600;
+      color: #0D47A1;
+    }
+
+    .stack-table td {
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+
+    .stack-table tr:last-child td { border-bottom: none; }
+
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #9e9e9e;
+      padding: 2rem 1rem;
+      border-top: 1px solid #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Chicago's 77 Neighborhoods</h1>
+  <p class="subtitle">Business activity and community sentiment &mdash; a data portrait</p>
+  <nav>
+    <a href="https://github.com/joshuarbruce/chicago-neighborhoods">GitHub Repository</a>
+    <span style="opacity:0.4">|</span>
+    <a href="slides/chicago_neighborhoods.html">Open slides full screen</a>
+  </nav>
+</header>
+
+<iframe
+  class="deck-frame"
+  src="slides/chicago_neighborhoods.html"
+  title="Chicago Neighborhoods slide deck"
+  loading="lazy"
+></iframe>
+
+<main>
+
+  <section>
+    <h2>About the Project</h2>
+    <p>
+      This project profiles every one of Chicago's 77 official community areas using two public data
+      sources: active business license records from the Chicago Data Portal and community discussion
+      pulled from Reddit. Each neighborhood slide shows an AI-generated summary, a business category
+      breakdown, and the most distinctive phrases from Reddit discussion &mdash; all computed from data, not
+      general knowledge.
+    </p>
+    <p>
+      The goal is to let the data speak for each neighborhood: which business types dominate, how the
+      community talks about itself, and where the Reddit signal is strong or thin.
+    </p>
+  </section>
+
+  <section>
+    <h2>How It Works</h2>
+    <div class="pipeline">
+      <div class="stage">
+        <div class="label">Stage 1</div>
+        <div class="title">Business License Collection</div>
+        <p>~85,000 active licenses pulled from the Chicago Data Portal Socrata API and filtered to <code>license_status = AAC</code>.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 2</div>
+        <div class="title">Business Classification</div>
+        <p>~200 license types collapsed into 10 categories via keyword matching. Shannon entropy used as a business diversity index.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 3</div>
+        <div class="title">Reddit Collection</div>
+        <p>Up to 1,000 posts per neighborhood from r/chicago searches and dedicated neighborhood subreddits. Paginated public JSON API, no OAuth.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 4</div>
+        <div class="title">Sentiment Analysis</div>
+        <p>Posts tokenized with tidytext. AFINN scores (&minus;5 to +5) normalized by word count to prevent length bias. Bing lexicon used as a secondary signal.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 5</div>
+        <div class="title">Distinctive Phrases (TF-IDF)</div>
+        <p>Bi- and tri-gram phrases scored by TF-IDF across all 77 neighborhoods. Overlapping sub-phrases deduplicated so results favor longer, more specific phrases.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 6</div>
+        <div class="title">AI Summaries</div>
+        <p>Claude Haiku generates a 3&ndash;4 sentence summary per neighborhood from structured data only. Prompt explicitly prohibits general knowledge. Summaries are cached.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tech Stack</h2>
+    <table class="stack-table">
+      <tr><th>Purpose</th><th>Tool</th></tr>
+      <tr><td>Data wrangling &amp; analysis</td><td>R + tidyverse</td></tr>
+      <tr><td>Reddit collection</td><td>Python (public JSON endpoints, no OAuth)</td></tr>
+      <tr><td>Sentiment analysis</td><td>tidytext + AFINN + Bing lexicons</td></tr>
+      <tr><td>Distinctive phrases</td><td>TF-IDF on bi/tri-grams (tidytext)</td></tr>
+      <tr><td>AI summaries</td><td>Anthropic Claude API (claude-haiku-4-5-20251001) via httr2</td></tr>
+      <tr><td>Slide deck</td><td>Quarto Reveal.js (rendered to self-contained HTML)</td></tr>
+      <tr><td>Hosting</td><td>GitHub Pages (<code>docs/</code>)</td></tr>
+      <tr><td>R package management</td><td>renv</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Data Quality</h2>
+    <p>
+      Reddit activity varies dramatically by neighborhood. Well-known areas like Logan Square and Hyde
+      Park have hundreds of posts; some South and West Side neighborhoods have very few. Each
+      neighborhood is flagged:
+    </p>
+    <ul style="margin: 0.5rem 0 0 1.2rem; line-height: 1.9; font-size: 0.93rem;">
+      <li><strong>full</strong> &mdash; business data + Reddit data (&ge;10 posts)</li>
+      <li><strong>low_reddit</strong> &mdash; fewer than 10 Reddit posts; sentiment used cautiously</li>
+      <li><strong>business_only</strong> &mdash; no usable Reddit data; AI summary omits community signals</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  &copy; 2026 Joshua R. Bruce &mdash;
+  Business license data and boundaries: City of Chicago Data Portal &mdash;
+  Reddit content: respective authors &mdash;
+  <a href="https://github.com/joshuarbruce/chicago-neighborhoods">Source on GitHub</a>
+</footer>
+
+</body>
+</html>

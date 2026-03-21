@@ -25,6 +25,7 @@ data/processed/ai_summaries/.gitkeep
 *_files/
 *.html
 !docs/
+!docs/**/*.html
 
 # Quarto website artifacts (not needed — slides are embed-resources: true)
 docs/site_libs/
