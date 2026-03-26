@@ -22,7 +22,6 @@ sent_class   <- tolower(sent_label)
 ai_text      <- coalesce(row$ai_summary, "_No AI summary available._")
 dq_flag      <- row$data_quality_flag
 
-# Airbnb stats (graceful fallback if columns absent)
 has_airbnb      <- "airbnb_listing_count" %in% names(row)
 airbnb_count    <- if (has_airbnb) scales::comma(row$airbnb_listing_count) else "—"
 airbnb_price    <- if (has_airbnb && !is.na(row$airbnb_median_price)) paste0("$", round(row$airbnb_median_price)) else "—"
@@ -34,6 +33,7 @@ airbnb_flag     <- if (has_airbnb) row$airbnb_data_flag else "no_airbnb"
 ::: {.columns}
 
 ::: {.column width="52%"}
+::: {.col-content}
 
 <div class="ai-summary">`r ai_text`</div>
 
@@ -61,9 +61,23 @@ Sentiment: <span class="sentiment-badge `r sent_class`">`r sent_label`</span>
 `r if (dq_flag == "business_only") '<span class="data-quality-notice"> &nbsp;no Reddit data</span>'`
 `r if (has_airbnb && airbnb_flag == "no_airbnb") '<span class="data-quality-notice"> &nbsp;no Airbnb data</span>'`
 
+::: {.tfidf-anchor}
+```{r}
+#| fig-height: 2.8
+#| fig-width: 5.2
+if (dq_flag != "business_only" && nrow(tfidf_row) > 0) {
+  make_tfidf_chart(tfidf_row, "Residents (Reddit)",
+                   bar_color   = "#4a6b7a",
+                   title_label = "Resident Voice — Reddit (TF-IDF)")
+}
+```
+:::
+
+:::
 :::
 
 ::: {.column width="48%"}
+::: {.col-content}
 
 ```{r}
 #| fig-height: 3.2
@@ -73,29 +87,19 @@ if (nrow(biz_cats_row) > 0) {
 }
 ```
 
+::: {.tfidf-anchor}
 ```{r}
-#| fig-height: 3.8
+#| fig-height: 2.8
 #| fig-width: 5.5
-has_reddit_tfidf <- dq_flag != "business_only" && nrow(tfidf_row) > 0
-has_airbnb_tfidf <- airbnb_flag != "no_airbnb" && nrow(airbnb_tfidf_row) > 0
-
-if (has_reddit_tfidf && has_airbnb_tfidf) {
-  p1 <- make_tfidf_chart(tfidf_row, "Residents (Reddit)",
-                         bar_color   = "#4a6b7a",
-                         title_label = "Resident Voice — Reddit (TF-IDF)")
-  p2 <- make_tfidf_chart(airbnb_tfidf_row, "Visitors (Airbnb)",
-                         bar_color   = "#7a5c35",
-                         title_label = "Visitor Voice — Airbnb Reviews (TF-IDF)")
-  p1 / p2
-} else if (has_reddit_tfidf) {
-  make_tfidf_chart(tfidf_row, nbhd_name)
-} else if (has_airbnb_tfidf) {
-  make_tfidf_chart(airbnb_tfidf_row, nbhd_name,
+if (airbnb_flag != "no_airbnb" && nrow(airbnb_tfidf_row) > 0) {
+  make_tfidf_chart(airbnb_tfidf_row, "Visitors (Airbnb)",
                    bar_color   = "#7a5c35",
                    title_label = "Visitor Voice — Airbnb Reviews (TF-IDF)")
 }
 ```
+:::
 
+:::
 :::
 
 :::

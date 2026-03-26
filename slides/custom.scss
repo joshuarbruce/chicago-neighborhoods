@@ -93,3 +93,15 @@ $presentation-heading-font-weight: 600;
     }
   }
 }
+
+// Flex wrapper inside each column — lets margin-top:auto push tfidf to bottom.
+// Applied to an inner div so .column itself is untouched (avoids breaking layout).
+.col-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.tfidf-anchor {
+  margin-top: auto;
+}
