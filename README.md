@@ -1,8 +1,8 @@
 # Chicago's 77 Neighborhoods — Data Portrait
 
-Chicago organizes itself into 77 official community areas — a boundary system stable enough to anchor decades of demographic and planning data, yet granular enough that neighborhoods with fewer than a mile between them can feel like different cities. This project builds a data portrait of each one, combining active business license records with Reddit community discussion to ask: what does each neighborhood *do*, and what does it *talk about*?
+Chicago organizes itself into 77 official community areas — a boundary system stable enough to anchor decades of demographic and planning data, yet granular enough that neighborhoods with fewer than a mile between them can feel like different cities. This project builds a data portrait of each one, combining active business license records, Reddit community discussion, and Airbnb guest reviews to ask: what does each neighborhood *do*, what do *residents* talk about, and what do *visitors* notice?
 
-The output is a [Quarto Reveal.js slide deck](https://joshuarbruce.github.io/chicago-neighborhoods/) — one slide per neighborhood — with an AI-generated summary, business category breakdown, sentiment score, and the phrases that make each neighborhood's Reddit conversation distinctive.
+The output is a [Quarto Reveal.js slide deck](https://joshuarbruce.github.io/chicago-neighborhoods/) — one slide per neighborhood — with an AI-generated summary synthesizing all three sources, a business category breakdown, and side-by-side TF-IDF phrase charts showing the resident voice (Reddit) alongside the visitor voice (Airbnb reviews).
 
 **[View the slide deck →](https://joshuarbruce.github.io/chicago-neighborhoods/)**
 
@@ -19,6 +19,8 @@ The output is a [Quarto Reveal.js slide deck](https://joshuarbruce.github.io/chi
 **TF-IDF surfaces the genuinely local.** The bi- and tri-gram distinctive phrase analysis tends to find things that only make sense if you've lived there. Irving Park's top phrases include "ice cream" — a nod to the neighborhood's unusually dense dessert shop scene. Lincoln Park's include "juvenile geese" — a very real seasonal hazard for anyone who walks along the lakefront path there. The Loop surfaces "central business district" and "trump tower"; Pilsen surfaces "murals" and "18th street."
 
 **Sentiment skews relentlessly positive.** 74 of 77 neighborhoods score Positive; 3 score Neutral; none score Negative. This is partly a function of how people write about their neighborhoods on Reddit (with local pride), and partly a limitation of AFINN's general-purpose lexicon, which doesn't capture the register of civic complaint that shows up in community discourse. The sentiment scores are meaningful as relative signals but shouldn't be taken as ground truth.
+
+**Residents and visitors notice different things.** The most consistent pattern in the Airbnb review TF-IDF is proximity language — "walking distance," "close transit," "easy access" — that rarely surfaces in Reddit discussions, where locals take transit access as given. Visitor phrases also concentrate on amenity specifics (coffee shops, restaurants, parking) while resident phrases capture local events, community issues, and neighborhood character. Near North Side visitors emphasize "Michigan Avenue" and "lake view"; residents discuss "alderman," "construction permits," and "dog parks." The gap between what a neighborhood markets to visitors and what residents actually care about is itself a data signal.
 
 ---
 
@@ -40,9 +42,13 @@ Posts are tokenized with `tidytext::unnest_tokens()`. AFINN scores (−5 to +5) 
 
 Rather than word frequency, which surfaces common words shared across all neighborhoods, TF-IDF on bi- and tri-gram phrases finds terms that are *specifically* elevated for one neighborhood relative to the others. After scoring, shorter phrases that appear as substrings of higher-ranked longer phrases are removed — so "lincoln yards" is dropped when "lincoln yards development" already appears. This consistently produces more specific, more interesting results than unigrams or unsuppressed bigrams.
 
+### Airbnb data
+
+Listing and review data comes from [Inside Airbnb](https://insideairbnb.com/) (two Chicago snapshots: June and September 2025). Each listing is assigned to a community area via spatial join — using its latitude/longitude against the official Chicago community area polygons — rather than Airbnb's own neighborhood labels, which use a different boundary system. The two snapshots are combined: listings are deduplicated keeping the most recent record; reviews are deduplicated by listing, date, and reviewer, yielding 519,747 unique reviews across 76 of 77 neighborhoods. Review text runs through the same NLP pipeline as Reddit posts: cleaning, stopword removal, bi/trigram TF-IDF with sub-phrase deduplication. An additional layer of Airbnb-specific stopwords suppresses generic hospitality language ("great stay," "clean," "host") to surface what's genuinely distinctive about each neighborhood's visitor experience.
+
 ### AI summaries
 
-Each neighborhood's slide leads with a 3–4 sentence summary generated by `claude-haiku-4-5-20251001` via the Anthropic API. The prompt passes structured data only — business count, top categories, diversity index, sentiment label, and top TF-IDF phrases — and explicitly prohibits drawing on general knowledge. Every claim in the summary is therefore traceable to the input data. Summaries are cached to git so re-rendering the deck never requires an API call.
+Each neighborhood's slide leads with a 3–4 sentence summary generated by `claude-haiku-4-5-20251001` via the Anthropic API. The prompt synthesizes all three data sources — business composition, resident Reddit discussion, and Airbnb visitor reviews — and explicitly prohibits drawing on general knowledge. When the Reddit and Airbnb phrase sets diverge noticeably, the model is instructed to name the gap. Every claim is traceable to the input data. Summaries are cached to git so re-rendering the deck never requires an API call.
 
 ### Visual design
 
@@ -90,6 +96,9 @@ NEIGHBORHOOD_SUBSET=5 quarto render slides/chicago_neighborhoods.qmd
 Rscript R/01_fetch_business_data.R
 Rscript R/02_process_business_data.R
 
+# Airbnb data (downloads automatically from insideairbnb.com)
+Rscript R/02b_process_airbnb_data.R
+
 # Reddit collection (~6 hours; 3.5s delay, up to 1,000 posts/neighborhood)
 python3 python/fetch_reddit.py
 
@@ -97,6 +106,7 @@ python3 python/fetch_reddit.py
 Rscript R/03_process_reddit_data.R
 
 # AI summaries (requires ANTHROPIC_API_KEY in .Renviron)
+# Add --force to regenerate all existing summaries
 Rscript R/04_generate_ai_summaries.R
 
 # Assemble master dataset
@@ -115,6 +125,8 @@ quarto render slides/chicago_neighborhoods.qmd
 **Community area boundaries:** [Chicago Data Portal GeoJSON](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6).
 
 **Reddit data:** Collected via Reddit's public JSON API per Reddit's [Terms of Service](https://www.redditinc.com/policies/user-agreement). Post content remains the property of respective authors.
+
+**Airbnb listing and review data:** [Inside Airbnb](https://insideairbnb.com/) under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/). Review content remains the property of respective authors.
 
 **Sentiment lexicons:** AFINN © Finn Årup Nielsen; Bing lexicon from Bing Liu et al.; both accessed via the [tidytext](https://github.com/juliasilge/tidytext) R package.
 

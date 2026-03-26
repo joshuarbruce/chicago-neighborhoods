@@ -68,7 +68,7 @@ $presentation-heading-font-weight: 600;
 // Stat grid: warm cream boxes with a hairline rule at the base
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.5em;
   margin: 0.4em 0;
 
@@ -80,7 +80,7 @@ $presentation-heading-font-weight: 600;
     text-align: center;
 
     .stat-value {
-      font-size: 1.35em;
+      font-size: 1.15em;
       font-weight: 600;
       color: #2c2420;
     }

@@ -5,21 +5,28 @@ library(dplyr)
 library(ggplot2)
 library(stringr)
 library(scales)
+library(patchwork)
 
 source(here("R", "utils", "chart_functions.R"))
 
-row          <- neighborhood_metrics |> filter(slug == current_slug)
-biz_cats_row <- biz_by_category     |> filter(slug == current_slug)
-tfidf_row    <- tfidf_data          |> filter(slug == current_slug)
+row              <- neighborhood_metrics   |> filter(slug == current_slug)
+biz_cats_row     <- biz_by_category        |> filter(slug == current_slug)
+tfidf_row        <- tfidf_data             |> filter(slug == current_slug)
+airbnb_tfidf_row <- airbnb_tfidf_data      |> filter(slug == current_slug)
 
-nbhd_name  <- row$name
-total_biz  <- row$total_active_businesses
-diversity  <- round(row$business_diversity_index, 2)
-sent_label <- row$sentiment_label
-sent_class <- tolower(sent_label)
-post_count <- row$post_count
-ai_text    <- coalesce(row$ai_summary, "_No AI summary available._")
-dq_flag    <- row$data_quality_flag
+nbhd_name    <- row$name
+total_biz    <- row$total_active_businesses
+diversity    <- round(row$business_diversity_index, 2)
+sent_label   <- row$sentiment_label
+sent_class   <- tolower(sent_label)
+ai_text      <- coalesce(row$ai_summary, "_No AI summary available._")
+dq_flag      <- row$data_quality_flag
+
+# Airbnb stats (graceful fallback if columns absent)
+has_airbnb      <- "airbnb_listing_count" %in% names(row)
+airbnb_count    <- if (has_airbnb) scales::comma(row$airbnb_listing_count) else "—"
+airbnb_price    <- if (has_airbnb && !is.na(row$airbnb_median_price)) paste0("$", round(row$airbnb_median_price)) else "—"
+airbnb_flag     <- if (has_airbnb) row$airbnb_data_flag else "no_airbnb"
 ```
 
 ## `r nbhd_name`
@@ -40,14 +47,19 @@ dq_flag    <- row$data_quality_flag
 <div class="stat-label">Diversity Index</div>
 :::
 ::: {.stat-box}
-<div class="stat-value">`r scales::comma(post_count)`</div>
-<div class="stat-label">Reddit Posts</div>
+<div class="stat-value">`r airbnb_count`</div>
+<div class="stat-label">Airbnb Listings</div>
+:::
+::: {.stat-box}
+<div class="stat-value">`r airbnb_price`</div>
+<div class="stat-label">Median/Night</div>
 :::
 :::
 
 Sentiment: <span class="sentiment-badge `r sent_class`">`r sent_label`</span>
-`r if (dq_flag == "low_reddit") '<span class="data-quality-notice"> &nbsp;⚠ limited data</span>'`
+`r if (dq_flag == "low_reddit") '<span class="data-quality-notice"> &nbsp;⚠ limited Reddit data</span>'`
 `r if (dq_flag == "business_only") '<span class="data-quality-notice"> &nbsp;no Reddit data</span>'`
+`r if (has_airbnb && airbnb_flag == "no_airbnb") '<span class="data-quality-notice"> &nbsp;no Airbnb data</span>'`
 
 :::
 
@@ -62,10 +74,25 @@ if (nrow(biz_cats_row) > 0) {
 ```
 
 ```{r}
-#| fig-height: 3.2
+#| fig-height: 3.8
 #| fig-width: 5.5
-if (dq_flag != "business_only" && nrow(tfidf_row) > 0) {
+has_reddit_tfidf <- dq_flag != "business_only" && nrow(tfidf_row) > 0
+has_airbnb_tfidf <- airbnb_flag != "no_airbnb" && nrow(airbnb_tfidf_row) > 0
+
+if (has_reddit_tfidf && has_airbnb_tfidf) {
+  p1 <- make_tfidf_chart(tfidf_row, "Residents (Reddit)",
+                         bar_color   = "#4a6b7a",
+                         title_label = "Resident Voice — Reddit (TF-IDF)")
+  p2 <- make_tfidf_chart(airbnb_tfidf_row, "Visitors (Airbnb)",
+                         bar_color   = "#7a5c35",
+                         title_label = "Visitor Voice — Airbnb Reviews (TF-IDF)")
+  p1 / p2
+} else if (has_reddit_tfidf) {
   make_tfidf_chart(tfidf_row, nbhd_name)
+} else if (has_airbnb_tfidf) {
+  make_tfidf_chart(airbnb_tfidf_row, nbhd_name,
+                   bar_color   = "#7a5c35",
+                   title_label = "Visitor Voice — Airbnb Reviews (TF-IDF)")
 }
 ```
 

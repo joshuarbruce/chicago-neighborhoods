@@ -12,6 +12,7 @@ suppressPackageStartupMessages({
 
 BIZ_PATH     <- here("data", "processed", "business_summary.rds")
 SENT_PATH    <- here("data", "processed", "sentiment_scores.rds")
+AIRBNB_PATH  <- here("data", "processed", "airbnb_summary.rds")
 SUMMARY_DIR  <- here("data", "processed", "ai_summaries")
 LOOKUP_PATH  <- here("data", "reference", "community_area_lookup.csv")
 OUT_PATH     <- here("data", "processed", "neighborhood_metrics.rds")
@@ -25,6 +26,16 @@ biz_summary <- biz_data$summary
 biz_cats    <- biz_data$by_category
 sentiment   <- readRDS(SENT_PATH)
 lookup      <- read_csv(LOOKUP_PATH, show_col_types = FALSE)
+
+airbnb_summary <- if (file.exists(AIRBNB_PATH)) {
+  message("Loading Airbnb summary...")
+  readRDS(AIRBNB_PATH)$summary |>
+    select(slug, airbnb_listing_count, airbnb_median_price,
+           airbnb_avg_rating, airbnb_data_flag, airbnb_sentiment_label)
+} else {
+  message("airbnb_summary.rds not found — Airbnb columns will be omitted.")
+  NULL
+}
 
 # ---------------------------------------------------------------------------
 # Read AI summaries into a tibble
@@ -65,6 +76,10 @@ neighborhood_metrics <- lookup |>
   left_join(ai_summaries, by = "slug") |>
   arrange(community_area_number)
 
+if (!is.null(airbnb_summary)) {
+  neighborhood_metrics <- left_join(neighborhood_metrics, airbnb_summary, by = "slug")
+}
+
 # ---------------------------------------------------------------------------
 # Assertions
 # ---------------------------------------------------------------------------
@@ -99,6 +114,16 @@ assert_that(
   !any(is.na(neighborhood_metrics$data_quality_flag)),
   msg = "NA values in data_quality_flag — check sentiment_scores join"
 )
+
+# Warn (don't stop) if Airbnb data is missing
+if ("airbnb_listing_count" %in% names(neighborhood_metrics)) {
+  assert_that(
+    !any(is.na(neighborhood_metrics$airbnb_listing_count)),
+    msg = "NA values in airbnb_listing_count — check airbnb_summary join"
+  )
+  message("Airbnb coverage: ",
+          sum(neighborhood_metrics$airbnb_listing_count > 0), " neighborhoods with listings")
+}
 
 # Warn (don't stop) if AI summaries are missing
 n_missing_summary <- sum(is.na(neighborhood_metrics$ai_summary))

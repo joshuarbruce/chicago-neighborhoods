@@ -144,20 +144,25 @@ make_leaflet_minimap <- function(geojson_path, community_area_number, neighborho
 
 #' Create a horizontal bar chart of top TF-IDF phrases for one neighborhood.
 #'
-#' @param tfidf_data Data frame with columns `word` and `tf_idf`.
+#' @param tfidf_data    Data frame with columns `word` and `tf_idf`.
 #' @param neighborhood_name Character — used in subtitle.
+#' @param bar_color     Fill color for bars. Default slate teal (Reddit); use
+#'                      ochre ("#7a5c35") for Airbnb review charts.
+#' @param title_label   Chart title string.
 #' @return ggplot object.
-make_tfidf_chart <- function(tfidf_data, neighborhood_name) {
+make_tfidf_chart <- function(tfidf_data, neighborhood_name,
+                             bar_color   = "#4a6b7a",
+                             title_label = "Distinctive Reddit Phrases (TF-IDF)") {
   df <- tfidf_data |>
     arrange(desc(tf_idf)) |>
     slice_head(n = 10) |>
     mutate(word = forcats::fct_reorder(word, tf_idf))
 
   ggplot(df, aes(x = tf_idf, y = word)) +
-    geom_col(fill = "#4a6b7a", width = 0.65, alpha = 0.85) +
+    geom_col(fill = bar_color, width = 0.65, alpha = 0.85) +
     scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
     labs(
-      title    = "Distinctive Reddit Phrases (TF-IDF)",
+      title    = title_label,
       subtitle = neighborhood_name,
       x        = "TF-IDF score"
     ) +

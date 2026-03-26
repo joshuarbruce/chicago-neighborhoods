@@ -15,23 +15,49 @@ suppressPackageStartupMessages({
 
 source(here("R", "utils", "api_helpers.R"))
 
-SENT_PATH   <- here("data", "processed", "sentiment_scores.rds")
-BIZ_PATH    <- here("data", "processed", "business_summary.rds")
-SUMMARY_DIR <- here("data", "processed", "ai_summaries")
+SENT_PATH    <- here("data", "processed", "sentiment_scores.rds")
+BIZ_PATH     <- here("data", "processed", "business_summary.rds")
+AIRBNB_PATH  <- here("data", "processed", "airbnb_summary.rds")
+SUMMARY_DIR  <- here("data", "processed", "ai_summaries")
+
+# --force flag: delete all existing summaries and regenerate from scratch
+args  <- commandArgs(trailingOnly = TRUE)
+force_regen <- "--force" %in% args
 
 dir.create(SUMMARY_DIR, recursive = TRUE, showWarnings = FALSE)
+
+if (force_regen) {
+  existing <- list.files(SUMMARY_DIR, pattern = "\\.txt$", full.names = TRUE)
+  if (length(existing) > 0) {
+    file.remove(existing)
+    message("--force: deleted ", length(existing), " existing summary files")
+  }
+}
 
 # ---------------------------------------------------------------------------
 # Load data
 # ---------------------------------------------------------------------------
-sentiment  <- readRDS(SENT_PATH)
-biz_data   <- readRDS(BIZ_PATH)
+sentiment   <- readRDS(SENT_PATH)
+biz_data    <- readRDS(BIZ_PATH)
 biz_summary <- biz_data$summary
+
+airbnb_summary <- if (file.exists(AIRBNB_PATH)) {
+  readRDS(AIRBNB_PATH)$summary |>
+    select(slug, airbnb_listing_count, airbnb_median_price,
+           airbnb_data_flag, airbnb_top_words)
+} else {
+  message("airbnb_summary.rds not found — Airbnb context will be omitted from prompts.")
+  NULL
+}
 
 # Join
 metrics <- biz_summary |>
   left_join(sentiment, by = c("community_area_number", "slug", "name")) |>
   arrange(community_area_number)
+
+if (!is.null(airbnb_summary)) {
+  metrics <- metrics |> left_join(airbnb_summary, by = "slug")
+}
 
 stopifnot(nrow(metrics) == 77L)
 
@@ -59,7 +85,24 @@ build_prompt <- function(row) {
   } else {
     glue(
       "- Overall community sentiment: {sentiment_label}",
-      "- Top words from Reddit discussions: {top_words}",
+      "- Top phrases from Reddit discussions (resident voice): {top_words}",
+      .sep = "\n"
+    )
+  }
+
+  # Airbnb block — only included if airbnb columns exist in row
+  has_airbnb <- "airbnb_data_flag" %in% names(row)
+  airbnb_block <- if (!has_airbnb || row$airbnb_data_flag == "no_airbnb") {
+    "(No Airbnb listing data available for this neighborhood.)"
+  } else {
+    listing_count <- row$airbnb_listing_count
+    median_price  <- if (is.na(row$airbnb_median_price)) "N/A" else
+                       paste0("$", round(row$airbnb_median_price))
+    airbnb_words  <- coalesce(row$airbnb_top_words, "")
+    glue(
+      "- Active Airbnb listings: {listing_count}",
+      "- Median nightly price: {median_price}",
+      "- Top phrases from Airbnb guest reviews (visitor voice): {airbnb_words}",
       .sep = "\n"
     )
   }
@@ -69,10 +112,14 @@ build_prompt <- function(row) {
     "Write a 3–4 sentence summary of the {name} neighborhood in Chicago based ONLY on the",
     "following data. Do not use general knowledge about the neighborhood.",
     "Do not begin with '{name} is...'",
+    "If the Airbnb visitor phrases and Reddit resident phrases differ noticeably,",
+    "briefly note what visitors seem to value that residents don't often discuss.",
     "",
     "Data for {name}:",
     "{biz_block}",
     "{reddit_block}",
+    "Airbnb visitor data:",
+    "{airbnb_block}",
     "",
     "Write the summary now:",
     .sep = "\n"

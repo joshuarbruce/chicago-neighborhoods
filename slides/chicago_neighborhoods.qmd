@@ -32,6 +32,7 @@ library(knitr)
 library(stringr)
 library(purrr)
 
+library(patchwork)
 source(here("R", "utils", "chart_functions.R"))
 
 # Load master dataset
@@ -45,6 +46,14 @@ neighborhood_metrics <- readRDS(metrics_path)
 
 # Load TF-IDF terms for neighborhood charts
 tfidf_data <- readRDS(here("data", "processed", "tfidf_terms.rds"))
+
+# Load Airbnb TF-IDF terms (visitor voice)
+airbnb_tfidf_path <- here("data", "processed", "airbnb_tfidf.rds")
+airbnb_tfidf_data <- if (file.exists(airbnb_tfidf_path)) {
+  readRDS(airbnb_tfidf_path)
+} else {
+  tibble(slug = character(), word = character(), tf_idf = numeric())
+}
 
 # Load business category breakdown for charts
 biz_data       <- readRDS(here("data", "processed", "business_summary.rds"))
@@ -67,7 +76,8 @@ geojson_path <- here("data", "reference", "chicago_community_areas.geojson")
 An automated data portrait of every official Chicago neighborhood, combining:
 
 - **Active business licenses** (Chicago Data Portal)
-- **Community sentiment** (Reddit discussions)
+- **Resident voice** (Reddit discussions)
+- **Visitor voice** (Airbnb guest reviews)
 - **AI-generated summaries** (Claude claude-haiku-4-5-20251001)
 
 `r nrow(neighborhood_metrics)` neighborhoods · `r scales::comma(sum(neighborhood_metrics$total_active_businesses))` active businesses
@@ -162,12 +172,18 @@ for (current_slug in slugs_to_render) {
 - ~200 license types → 10 categories
 - Diversity: Shannon entropy
 
-**Reddit Data**
+**Reddit Data** (resident voice)
 
 - Public JSON API (no OAuth)
 - r/chicago + neighborhood subreddits
 - Past 12 months
 - Sentiment: AFINN + Bing lexicons (tidytext)
+
+**Airbnb Data** (visitor voice)
+
+- Inside Airbnb (insideairbnb.com), 2 snapshots
+- Spatial join to community areas via lat/lon
+- NLP on guest review text: bi/tri-gram TF-IDF
 
 :::
 :::{.column width="50%"}
@@ -175,7 +191,8 @@ for (current_slug in slugs_to_render) {
 **AI Summaries**
 
 - Model: `claude-haiku-4-5-20251001`
-- Prompt constrained to data only
+- Synthesizes business + resident + visitor data
+- Flags divergence between Reddit and Airbnb themes
 - Cached; not regenerated each render
 
 **Data Quality Flags**
@@ -183,6 +200,7 @@ for (current_slug in slugs_to_render) {
 - `full` — business + Reddit (≥10 posts)
 - `low_reddit` — <10 Reddit posts
 - `business_only` — no Reddit data
+- `no_airbnb` — no Airbnb listings found
 
 **Code:** github.com/[your-username]/chicago_neighborhoods
 
