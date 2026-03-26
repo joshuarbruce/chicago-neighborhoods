@@ -149,7 +149,7 @@
 
 <header>
   <h1>Chicago's 77 Neighborhoods</h1>
-  <p class="subtitle">Business activity and community sentiment &mdash; a data portrait</p>
+  <p class="subtitle">Business activity, resident voice, and visitor perspective &mdash; a data portrait</p>
   <nav>
     <a href="https://github.com/joshuarbruce/chicago-neighborhoods">GitHub Repository</a>
     <span style="opacity:0.4">|</span>
@@ -169,15 +169,16 @@
   <section>
     <h2>About the Project</h2>
     <p>
-      This project profiles every one of Chicago's 77 official community areas using two public data
-      sources: active business license records from the Chicago Data Portal and community discussion
-      pulled from Reddit. Each neighborhood slide shows an AI-generated summary, a business category
-      breakdown, and the most distinctive phrases from Reddit discussion &mdash; all computed from data, not
-      general knowledge.
+      This project profiles every one of Chicago's 77 official community areas using three public data
+      sources: active business license records from the Chicago Data Portal, community discussion from
+      Reddit, and guest reviews from Inside Airbnb. Each neighborhood slide shows an AI-generated summary
+      synthesizing all three sources, a business category breakdown, and side-by-side phrase charts
+      comparing what residents talk about with what visitors notice &mdash; all computed from data, not general
+      knowledge.
     </p>
     <p>
-      The goal is to let the data speak for each neighborhood: which business types dominate, how the
-      community talks about itself, and where the Reddit signal is strong or thin.
+      The central question: what does each neighborhood <em>do</em>, what do <em>residents</em> talk about,
+      and what do <em>visitors</em> notice? The gap between those last two is often the most interesting signal.
     </p>
   </section>
 
@@ -187,7 +188,7 @@
       <div class="stage">
         <div class="label">Stage 1</div>
         <div class="title">Business License Collection</div>
-        <p>~85,000 active licenses pulled from the Chicago Data Portal Socrata API and filtered to <code>license_status = AAC</code>.</p>
+        <p>~78,000 active licenses pulled from the Chicago Data Portal Socrata API and filtered to <code>license_status = AAC</code>.</p>
       </div>
       <div class="stage">
         <div class="label">Stage 2</div>
@@ -196,23 +197,28 @@
       </div>
       <div class="stage">
         <div class="label">Stage 3</div>
+        <div class="title">Airbnb Data Collection</div>
+        <p>Two Inside Airbnb Chicago snapshots (June &amp; September 2025) combined: 9,500 listings and 519,747 unique guest reviews. Listings are assigned to community areas via spatial join on lat/lon, not Airbnb&rsquo;s own neighborhood labels.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 4</div>
         <div class="title">Reddit Collection</div>
         <p>Up to 1,000 posts per neighborhood from r/chicago searches and dedicated neighborhood subreddits. Paginated public JSON API, no OAuth.</p>
       </div>
       <div class="stage">
-        <div class="label">Stage 4</div>
-        <div class="title">Sentiment Analysis</div>
-        <p>Posts tokenized with tidytext. AFINN scores (&minus;5 to +5) normalized by word count to prevent length bias. Bing lexicon used as a secondary signal.</p>
-      </div>
-      <div class="stage">
         <div class="label">Stage 5</div>
-        <div class="title">Distinctive Phrases (TF-IDF)</div>
-        <p>Bi- and tri-gram phrases scored by TF-IDF across all 77 neighborhoods. Overlapping sub-phrases deduplicated so results favor longer, more specific phrases.</p>
+        <div class="title">Sentiment Analysis</div>
+        <p>Reddit posts tokenized with tidytext. AFINN scores (&minus;5 to +5) normalized by word count to prevent length bias. Bing lexicon used as a secondary signal.</p>
       </div>
       <div class="stage">
         <div class="label">Stage 6</div>
+        <div class="title">Distinctive Phrases (TF-IDF)</div>
+        <p>Bi- and tri-gram TF-IDF run independently on Reddit posts (resident voice) and Airbnb reviews (visitor voice). Overlapping sub-phrases deduplicated. Airbnb run adds a hospitality stopword layer to suppress generic review language.</p>
+      </div>
+      <div class="stage">
+        <div class="label">Stage 7</div>
         <div class="title">AI Summaries</div>
-        <p>Claude Haiku generates a 3&ndash;4 sentence summary per neighborhood from structured data only. Prompt explicitly prohibits general knowledge. Summaries are cached.</p>
+        <p>Claude Haiku synthesizes all three data sources into a 3&ndash;4 sentence summary per neighborhood. When resident and visitor phrase sets diverge, the model is instructed to name the gap. Summaries are cached; no API key needed to re-render slides.</p>
       </div>
     </div>
   </section>
@@ -222,7 +228,9 @@
     <table class="stack-table">
       <tr><th>Purpose</th><th>Tool</th></tr>
       <tr><td>Data wrangling &amp; analysis</td><td>R + tidyverse</td></tr>
+      <tr><td>Spatial join (Airbnb listings → community areas)</td><td>sf + Chicago GeoJSON</td></tr>
       <tr><td>Reddit collection</td><td>Python (public JSON endpoints, no OAuth)</td></tr>
+      <tr><td>Airbnb data</td><td>Inside Airbnb (two Chicago snapshots: June &amp; Sept 2025)</td></tr>
       <tr><td>Sentiment analysis</td><td>tidytext + AFINN + Bing lexicons</td></tr>
       <tr><td>Distinctive phrases</td><td>TF-IDF on bi/tri-grams (tidytext)</td></tr>
       <tr><td>AI summaries</td><td>Anthropic Claude API (claude-haiku-4-5-20251001) via httr2</td></tr>
@@ -243,6 +251,7 @@
       <li><strong>full</strong> &mdash; business data + Reddit data (&ge;10 posts)</li>
       <li><strong>low_reddit</strong> &mdash; fewer than 10 Reddit posts; sentiment used cautiously</li>
       <li><strong>business_only</strong> &mdash; no usable Reddit data; AI summary omits community signals</li>
+      <li><strong>no_airbnb</strong> &mdash; no Airbnb listings mapped to this neighborhood; visitor voice chart omitted</li>
     </ul>
   </section>
 
@@ -252,6 +261,7 @@
   &copy; 2026 Joshua R. Bruce &mdash;
   Business license data and boundaries: City of Chicago Data Portal &mdash;
   Reddit content: respective authors &mdash;
+  Airbnb listing and review data: <a href="https://insideairbnb.com/">Inside Airbnb</a> (CC BY 4.0) &mdash;
   <a href="https://github.com/joshuarbruce/chicago-neighborhoods">Source on GitHub</a>
 </footer>
 
